@@ -1,0 +1,49 @@
+version: '3.8'
+
+services:
+  mongodb:
+    image: mongo:latest
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+
+  log-collector:
+    build: ./log-collector-service
+    ports:
+      - "5001:5001"
+    environment:
+      - MONGODB_URI=mongodb://mongodb:27017/logdb
+    depends_on:
+      - mongodb
+
+  alert-service:
+    build: ./alert-service
+    ports:
+      - "5002:5002"
+    environment:
+      - MONGODB_URI=mongodb://mongodb:27017/logdb
+      - SMTP_HOST=smtp.ethereal.email
+      - SMTP_USER=null
+      - SMTP_PASS=null
+    depends_on:
+      - mongodb
+      - log-collector
+
+  mock-services:
+    build: ./mock-services
+    environment:
+      - LOG_COLLECTOR_URL=http://log-collector:5001/api/logs
+    depends_on:
+      - log-collector
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - log-collector
+      - alert-service
+
+volumes:
+  mongo-data:
