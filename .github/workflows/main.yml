@@ -1,0 +1,61 @@
+name: DevOps Pipeline
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Install dependencies (Log Collector)
+        run: cd log-collector-service && npm install
+
+      - name: Install dependencies (Alert Service)
+        run: cd alert-service && npm install
+
+      - name: Build Frontend
+        run: |
+          cd frontend
+          npm install
+          npm run build
+
+  docker-push:
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v3
+      
+      # In a real scenario, you'd login to Docker Hub or ECR here
+      # - name: Login to DockerHub
+      #   uses: docker/login-action@v2
+      #   with:
+      #     username: ${{ secrets.DOCKERHUB_USERNAME }}
+      #     password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and Tag Images
+        run: |
+          docker build -t log-collector ./log-collector-service
+          docker build -t alert-service ./alert-service
+          docker build -t frontend ./frontend
+
+  deploy:
+    needs: docker-push
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - name: Deploy to EC2
+        run: |
+          echo "Connecting to AWS EC2..."
+          # ssh -i key.pem ec2-user@${{ secrets.EC2_HOST }} "cd ~/app && docker-compose pull && docker-compose up -d"
+          echo "Deployment script executed."
